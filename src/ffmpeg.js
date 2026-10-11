@@ -40,11 +40,15 @@ function parseLoudnormJSON(logLines) {
   }
 }
 
-export async function measureLoudness(file) {
+export async function measureLoudness(file, onProgress) {
   const ffmpeg = await getFFmpeg()
   const lines = []
-  const handler = ({ message }) => lines.push(message)
-  ffmpeg.on('log', handler)
+  const logHandler = ({ message }) => lines.push(message)
+  ffmpeg.on('log', logHandler)
+  if (onProgress) {
+    ffmpeg.off('progress')
+    ffmpeg.on('progress', ({ progress }) => onProgress(Math.min(1, Math.max(0, progress))))
+  }
 
   const inputName = 'measure_input' + extOf(file.name)
   await ffmpeg.writeFile(inputName, await fileToUint8Array(file))
@@ -55,7 +59,8 @@ export async function measureLoudness(file) {
     '-',
   ])
   await ffmpeg.deleteFile(inputName)
-  ffmpeg.off('log', handler)
+  ffmpeg.off('log', logHandler)
+  ffmpeg.off('progress')
 
   const json = parseLoudnormJSON(lines)
   if (json) {
@@ -113,6 +118,7 @@ export async function normalizeLoudness(file, preset, measured, onProgress) {
   const data = await ffmpeg.readFile(outputName)
   await ffmpeg.deleteFile(inputName)
   await ffmpeg.deleteFile(outputName)
+  ffmpeg.off('progress')
 
   return new Blob([data.buffer], { type: 'audio/mpeg' })
 }

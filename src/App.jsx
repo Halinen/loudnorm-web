@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { PRESETS } from './presets'
 import { measureLoudness, normalizeLoudness } from './ffmpeg'
+import { useI18n } from './i18n.jsx'
 import './App.css'
 
 const STAGE = {
@@ -26,6 +27,7 @@ function isAudioFile(f) {
 }
 
 export default function App() {
+  const { lang, toggleLang, t } = useI18n()
   const [file, setFile] = useState(null)
   const [presetId, setPresetId] = useState(PRESETS[0].id)
   const [stage, setStage] = useState(STAGE.IDLE)
@@ -68,7 +70,7 @@ export default function App() {
   const handleFile = useCallback(async (f) => {
     if (!f) return
     if (!isAudioFile(f)) {
-      setError(`不支持的文件类型：${f.name}。请选择音频文件（mp3/wav/m4a/flac 等）。`)
+      setError(t.unsupportedFile(f.name))
       setStage(STAGE.ERROR)
       return
     }
@@ -81,10 +83,10 @@ export default function App() {
       setMeasured(m)
       setStage(STAGE.MEASURED)
     } catch (e) {
-      setError(`测量响度失败：${e?.message || e}`)
+      setError(t.measureFailed(e?.message || e))
       setStage(STAGE.ERROR)
     }
-  }, [reset])
+  }, [reset, t])
 
   const handleNormalize = useCallback(async () => {
     if (!file || !measured) return
@@ -99,10 +101,10 @@ export default function App() {
       setResultMeasured(rm)
       setStage(STAGE.DONE)
     } catch (e) {
-      setError(`归一化失败：${e?.message || e}`)
+      setError(t.normalizeFailed(e?.message || e))
       setStage(STAGE.ERROR)
     }
-  }, [file, measured, preset])
+  }, [file, measured, preset, t])
 
   const downloadUrl = resultBlob ? URL.createObjectURL(resultBlob) : null
   const downloadName = file ? file.name.replace(/\.[^.]+$/, '') + '_norm.mp3' : 'normalized.mp3'
@@ -110,8 +112,13 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Loudnorm Web</h1>
-        <p className="subtitle">按行业标准把音频响度归一化 — 全部在浏览器本地完成，文件不会上传</p>
+        <div className="header-row">
+          <h1>{t.title}</h1>
+          <button className="lang-toggle" onClick={toggleLang} aria-label="toggle language">
+            {lang === 'zh' ? 'EN' : '中文'}
+          </button>
+        </div>
+        <p className="subtitle">{t.subtitle}</p>
       </header>
 
       <section
@@ -133,79 +140,79 @@ export default function App() {
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
         {file ? (
-          <p>已选择：<strong>{file.name}</strong></p>
+          <p>{t.dropzoneSelected(file.name)}</p>
         ) : (
-          <p>点击选择或拖拽音频文件到此处</p>
+          <p>{t.dropzonePrompt}</p>
         )}
       </section>
 
       <section className="presets">
-        <label htmlFor="preset-select">目标标准</label>
+        <label htmlFor="preset-select">{t.presetLabel}</label>
         <select id="preset-select" value={presetId} onChange={(e) => handlePresetChange(e.target.value)}>
           {PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>{p.label}</option>
+            <option key={p.id} value={p.id}>{p.label[lang]}</option>
           ))}
         </select>
-        <p className="preset-desc">{preset.description}</p>
+        <p className="preset-desc">{preset.description[lang]}</p>
       </section>
 
       {stage === STAGE.MEASURING && (
         <div className="progress">
           <div className="progress-bar" style={{ width: `${Math.round(measureProgress * 100)}%` }} />
-          <span>正在测量响度… {Math.round(measureProgress * 100)}%</span>
+          <span>{t.measuring(Math.round(measureProgress * 100))}</span>
         </div>
       )}
 
       {measured && (stage === STAGE.MEASURED || stage === STAGE.PROCESSING || stage === STAGE.DONE) && (
         <section className="measurement">
-          <h2>原始文件测量结果</h2>
+          <h2>{t.measurementHeading}</h2>
           <dl>
-            <dt>Integrated Loudness</dt><dd>{fmt(measured.inputI)} LUFS</dd>
-            <dt>True Peak</dt><dd>{fmt(measured.inputTP)} dBTP</dd>
-            <dt>Loudness Range</dt><dd>{fmt(measured.inputLRA)} LU</dd>
+            <dt>{t.integrated}</dt><dd>{fmt(measured.inputI)} LUFS</dd>
+            <dt>{t.truePeak}</dt><dd>{fmt(measured.inputTP)} dBTP</dd>
+            <dt>{t.lra}</dt><dd>{fmt(measured.inputLRA)} LU</dd>
           </dl>
         </section>
       )}
 
       {stage === STAGE.MEASURED && (
         <button className="primary" onClick={handleNormalize}>
-          归一化到 {preset.I} LUFS
+          {t.normalizeTo(preset.I)}
         </button>
       )}
 
       {stage === STAGE.PROCESSING && (
         <div className="progress">
           <div className="progress-bar" style={{ width: `${Math.round(progress * 100)}%` }} />
-          <span>处理中… {Math.round(progress * 100)}%</span>
+          <span>{t.processing(Math.round(progress * 100))}</span>
         </div>
       )}
 
       {stage === STAGE.DONE && resultMeasured && (
         <section className="result">
-          <h2>处理完成</h2>
+          <h2>{t.resultHeading}</h2>
           <dl>
-            <dt>Integrated Loudness</dt><dd>{fmt(resultMeasured.inputI)} LUFS</dd>
-            <dt>True Peak</dt><dd>{fmt(resultMeasured.inputTP)} dBTP</dd>
-            <dt>Loudness Range</dt><dd>{fmt(resultMeasured.inputLRA)} LU</dd>
+            <dt>{t.integrated}</dt><dd>{fmt(resultMeasured.inputI)} LUFS</dd>
+            <dt>{t.truePeak}</dt><dd>{fmt(resultMeasured.inputTP)} dBTP</dd>
+            <dt>{t.lra}</dt><dd>{fmt(resultMeasured.inputLRA)} LU</dd>
           </dl>
           <a className="primary download" href={downloadUrl} download={downloadName}>
-            下载 {downloadName}
+            {t.download(downloadName)}
           </a>
-          <button className="secondary" onClick={reset}>处理另一个文件</button>
+          <button className="secondary" onClick={reset}>{t.processAnother}</button>
         </section>
       )}
 
       {stage === STAGE.ERROR && (
         <section className="error">
           <p>{error}</p>
-          <button className="secondary" onClick={reset}>重试</button>
+          <button className="secondary" onClick={reset}>{t.retry}</button>
         </section>
       )}
 
       <footer>
         <p>
-          基于 ffmpeg.wasm 在浏览器内运行 EBU R128 两遍响度归一化（loudnorm）。
-          源码：<a href="https://github.com/Halinen/loudnorm-web" target="_blank" rel="noreferrer">GitHub</a>
+          {t.footer}
+          {' '}{t.sourceCode}：<a href="https://github.com/Halinen/loudnorm-web" target="_blank" rel="noreferrer">GitHub</a>
         </p>
       </footer>
     </div>

@@ -16,6 +16,8 @@ A browser-only tool for normalizing audio loudness (LUFS) to common industry tar
   Re-measures the output so you can confirm it landed near the target
 - 直接在浏览器下载处理后的 MP3
   Download the processed MP3 directly from the browser
+- 界面支持中英文切换，默认跟随浏览器语言
+  UI supports Chinese/English toggle, defaulting to your browser's language
 
 ## 预设标准 / Presets
 
